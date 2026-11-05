@@ -164,12 +164,30 @@ def threshold(res: dict, model: str) -> None:
 
 # ---- 3. Training vs. Test ------------------------------------------------------
 def train_vs_test(res: dict, model: str) -> None:
-    starter_note("training and test AUROC of every model, in a table.")
-    s = m11.auroc_summary(res)
-    rows = [{"Model": m11.MODEL_LABEL[m], f"{TRAIN} AUROC": m11.fmt_num(v["train"]), f"{TEST} AUROC": m11.fmt_num(v["test"])}
-            for m, v in s.items()]
-    st.caption(f"{TRAIN} and {TEST} Â· AUROC on the rows each model learned from, and on rows it never saw")
+    summary = m11.auroc_summary(res)
+    rows = []
+    for name in m11.MODELS:
+        if name not in summary:
+            continue
+        scores = summary[name]
+        rows.append({
+            "Model": m11.MODEL_LABEL[name],
+            "Training AUROC": m11.fmt_num(scores["train"]),
+            "Test AUROC": m11.fmt_num(scores["test"]),
+            "Gap (Training minus Test)": m11.fmt_num(scores["gap"]),
+        })
+
+    st.subheader("Training and Test | How well each model ranks patients")
+    st.write(f"**Training patients** {res['train']['n']:,} | **Test patients** {res['test']['n']:,}")
     st.table(pd.DataFrame(rows).set_index("Model"))
+    st.caption(
+        "AUROC measures how often a model ranks a person who had the outcome "
+        "above a person who did not. A score of 0.5 is chance-level ranking."
+    )
+    st.caption(
+        "Use the Test column to compare how the models ranked patients they had never seen. "
+        "A large drop from Training to Test can be a sign of overfitting."
+    )
 
 
 RENDER = dict(zip(SECTIONS, [beyond_accuracy, threshold, train_vs_test]))
