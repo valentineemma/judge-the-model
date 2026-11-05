@@ -110,12 +110,56 @@ def beyond_accuracy(res: dict, model: str) -> None:
 
 # ---- 2. A Threshold for the Job ------------------------------------------------
 def threshold(res: dict, model: str) -> None:
-    starter_note("metrics at 0.50 only.")
-    p, y = m11.preds(res, model)
-    m = m11.metrics(m11.confusion(p, y, 0.5))
-    st.caption(f"{TEST} Â· {m11.MODEL_LABEL[model]}, threshold 0.50")
-    st.table(pd.DataFrame([{"Sensitivity": m11.fmt_pct(m["sensitivity"]), "Specificity": m11.fmt_pct(m["specificity"]),
-                            "Precision": m11.fmt_pct(m["precision"]), "Flagged per 100": f"{m['flagged_per_100']:.1f}"}]))
+    scores, actual = m11.preds(res, model)
+    selected = st.slider("Threshold for flagging someone", 0.0, 1.0, 0.50, 0.01, format="%.2f")
+    st.caption(
+        "People are flagged when their score is at or above the threshold. "
+        "Moving the slider changes who is flagged. The model's scores and AUROC stay the same."
+    )
+
+    default_counts = m11.confusion(scores, actual, 0.50)
+    selected_counts = m11.confusion(scores, actual, selected)
+    default_metrics = m11.metrics(default_counts)
+    selected_metrics = m11.metrics(selected_counts)
+
+    def comparison_values(counts, measures):
+        false_alarms = 100 * counts["fp"] / measures["n"] if measures["n"] else None
+        return {
+            "Flagged per 100 people": m11.fmt_num(measures["flagged_per_100"], 1),
+            "False alarms per 100 people": m11.fmt_num(false_alarms, 1),
+            "Sensitivity (share of actual positives caught)": m11.fmt_pct(measures["sensitivity"]),
+            "Specificity (share of actual negatives left unflagged)": m11.fmt_pct(measures["specificity"]),
+            "Precision (share of flagged people who were positive)": m11.fmt_pct(measures["precision"]),
+            "Accuracy": m11.fmt_pct(measures["accuracy"]),
+        }
+
+    st.subheader(f"Test | {m11.MODEL_LABEL[model]} at two cutoffs")
+    default_values = comparison_values(default_counts, default_metrics)
+    selected_values = comparison_values(selected_counts, selected_metrics)
+    rows = [
+        f"| Test metric | Default 0.50 | Selected {selected:.2f} |",
+        "| --- | ---: | ---: |",
+    ]
+    for label, value in default_values.items():
+        rows.append(f"| {label} | {value} | {selected_values[label]} |")
+    st.markdown("\n".join(rows))
+    st.caption("False alarms per 100 uses everyone screened as the denominator.")
+
+    if res["dataset"] == "diabetes":
+        sensitivity = selected_metrics["sensitivity"]
+        if sensitivity is not None and sensitivity >= 0.90:
+            st.success("This cutoff meets the 90% sensitivity target on these test adults.")
+        else:
+            st.info("The diabetes screening goal is to catch at least 90% of actual positives.")
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**Test patient counts | Default 0.50**")
+        st.table(confusion_table(default_counts))
+    with right:
+        st.markdown(f"**Test patient counts | Selected {selected:.2f}**")
+        st.table(confusion_table(selected_counts))
+    st.caption("Top left: positives caught. Top right: positives missed. Bottom left: false alarms.")
 
 
 # ---- 3. Training vs. Test ------------------------------------------------------
