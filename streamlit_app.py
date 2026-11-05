@@ -111,6 +111,16 @@ def beyond_accuracy(res: dict, model: str) -> None:
 # ---- 2. A Threshold for the Job ------------------------------------------------
 def threshold(res: dict, model: str) -> None:
     scores, actual = m11.preds(res, model)
+    st.markdown(
+        f"**Current dataset** {m11.DATASET_LABEL[res['dataset']]}  \n"
+        f"**Current model** {m11.MODEL_LABEL[model]}"
+    )
+    st.caption("Use Dataset and Model in the sidebar to change what you are comparing.")
+    if model == "baseline":
+        st.info(
+            "The prevalence baseline gives everyone the same score. "
+            "The counts change only when the cutoff crosses that score."
+        )
     selected = st.slider("Threshold for flagging someone", 0.0, 1.0, 0.50, 0.01, format="%.2f")
     st.caption(
         "People are flagged when their score is at or above the threshold. "
